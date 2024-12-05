@@ -605,3 +605,88 @@ filtros = [
 for filtro_coluna, filtro_valor in filtros:
     treinar_e_exibir_variaveis(df, perguntas, filtro_coluna, filtro_valor, modelo_tipo='RandomForest')
 
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report
+from sklearn.model_selection import train_test_split
+
+# Dicionário para armazenar importâncias
+importancias_detrator = []
+importancias_neutro = []
+
+def treinar_e_avaliar_modelo(df, perguntas, filtro_coluna, filtro_valor):
+    global importancias_detrator, importancias_neutro
+
+    # Filtrar os dados
+    df_filtrado = df[df[filtro_coluna] == filtro_valor]
+
+    if df_filtrado.empty:
+        print(f"Warning: DataFrame is empty for filter {filtro_coluna}: {filtro_valor}. Skipping model training.")
+        return
+
+    # Criação do target binário
+    y_detrator = criar_target_binario(df_filtrado, 'detrator')
+    y_neutro = criar_target_binario(df_filtrado, 'neutro')
+
+    # Verificar valores nulos nas variáveis de entrada
+    X = df_filtrado[perguntas].dropna()
+    y_detrator = y_detrator.loc[X.index]
+    y_neutro = y_neutro.loc[X.index]
+
+    # Divisão dos dados
+    X_train, X_test, y_train_detrator, y_test_detrator = train_test_split(X, y_detrator, test_size=0.2, random_state=42)
+    _, _, y_train_neutro, y_test_neutro = train_test_split(X, y_neutro, test_size=0.2, random_state=42)
+
+    # Modelo para detratores
+    modelo_detrator = RandomForestClassifier(random_state=42)
+    modelo_detrator.fit(X_train, y_train_detrator)
+    y_pred_detrator = modelo_detrator.predict(X_test)
+    print(f"\nRelatório de Classificação - Detratores - Filtro {filtro_coluna}: {filtro_valor}")
+    print(classification_report(y_test_detrator, y_pred_detrator, zero_division=0))
+    # Salvar importâncias
+    importancias_detrator.append(pd.Series(modelo_detrator.feature_importances_, index=perguntas))
+
+    # Modelo para neutros
+    modelo_neutro = RandomForestClassifier(random_state=42)
+    modelo_neutro.fit(X_train, y_train_neutro)
+    y_pred_neutro = modelo_neutro.predict(X_test)
+    print(f"\nRelatório de Classificação - Neutros - Filtro {filtro_coluna}: {filtro_valor}")
+    print(classification_report(y_test_neutro, y_pred_neutro, zero_division=0))
+    # Salvar importâncias
+    importancias_neutro.append(pd.Series(modelo_neutro.feature_importances_, index=perguntas))
+
+# Após o loop para todos os filtros, combine as importâncias
+def calcular_top_10(importancias_detrator, importancias_neutro):
+    # Combinar e calcular médias
+    todas_importancias = pd.concat(importancias_detrator + importancias_neutro, axis=1)
+    medias_importancia = todas_importancias.mean(axis=1)
+    top_10 = medias_importancia.nlargest(10)
+    return top_10
+
+# Executar o treinamento e cálculo
+for filtro_coluna, filtro_valor in filtros:
+    treinar_e_avaliar_modelo(df, perguntas, filtro_coluna, filtro_valor)
+
+# Calcular o top 10 geral
+top_10_variaveis = calcular_top_10(importancias_detrator, importancias_neutro)
+print("\nTop 10 Variáveis Mais Importantes (Geral):")
+print(top_10_variaveis)
+
+# Função para gerar o PDP das top 5 variáveis
+from sklearn.inspection import PartialDependenceDisplay
+
+def plot_top_5_pdp(modelo, X, top_features):
+    fig, ax = plt.subplots(figsize=(12, 8))
+    # plot_partial_dependence(modelo, X, top_features, ax=ax, grid_resolution=50) # Original line causing the error
+    display = PartialDependenceDisplay.from_estimator(modelo, X, top_features, ax=ax, grid_resolution=50) # Use PartialDependenceDisplay instead
+    plt.title('Partial Dependence Plots (PDP) - Top 5 Features')
+    plt.tight_layout() #linha adicionda para melhor visualização dos graficos
+    plt.show()
+
+# Identificar as 5 variáveis mais importantes
+importances = modelo_detrator.feature_importances_
+indices = np.argsort(importances)[::-1]
+top_5_features = [X.columns[i] for i in indices[:5]]
+
+# Gerar PDP para as top 5 variáveis
+plot_top_5_pdp(modelo_detrator, X_test, top_5_features)
