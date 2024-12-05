@@ -470,3 +470,138 @@ filtros = [
 for filtro_coluna, filtro_valor in filtros:
     treinar_e_avaliar_modelo(df, perguntas, filtro_coluna, filtro_valor)
 
+# Função para treinar e avaliar um modelo para um dado filtro
+def treinar_e_avaliar_modelo(df, perguntas, filtro_coluna, filtro_valor):
+    # Filtrar os dados com base no filtro
+    df_filtrado = df[(df['regiao'] == 'Centro-Oeste') & (df[filtro_coluna] == filtro_valor)]
+
+    # Verificar se o DataFrame está vazio
+    if df_filtrado.empty:
+        print(f"Warning: DataFrame is empty for filter {filtro_coluna}: {filtro_valor}. Skipping model training.")
+        return
+
+    # Criação do target binário
+    y_detrator = criar_target_binario(df_filtrado, 'detrator')
+    y_neutro = criar_target_binario(df_filtrado, 'neutro')
+
+    # Verificar valores nulos nas variáveis de entrada
+    X = df_filtrado[perguntas].dropna()
+    y_detrator = y_detrator.loc[X.index]
+    y_neutro = y_neutro.loc[X.index]
+
+    # Divisão dos dados em treino e teste (mesma divisão para ambos os modelos)
+    X_train, X_test, y_train_detrator, y_test_detrator = train_test_split(X, y_detrator, test_size=0.2, random_state=42)
+    _, _, y_train_neutro, y_test_neutro = train_test_split(X, y_neutro, test_size=0.2, random_state=42)
+
+    # Modelo para detratores
+    modelo_detrator = RandomForestClassifier(random_state=42)
+    modelo_detrator.fit(X_train, y_train_detrator)
+    y_pred_detrator = modelo_detrator.predict(X_test)
+    print(f"\nRelatório de Classificação - Detratores - Filtro {filtro_coluna}: {filtro_valor}")
+    print(classification_report(y_test_detrator, y_pred_detrator))
+
+    # Modelo para neutros
+    modelo_neutro = RandomForestClassifier(random_state=42)
+    modelo_neutro.fit(X_train, y_train_neutro)
+    y_pred_neutro = modelo_neutro.predict(X_test)
+    print(f"\nRelatório de Classificação - Neutros - Filtro {filtro_coluna}: {filtro_valor}")
+    print(classification_report(y_test_neutro, y_pred_neutro))
+
+# Definindo os filtros para 'Periodo de Pesquisa' (somente para 'Centro-Oeste')
+periodos_de_pesquisa = [
+    ('Periodo de Pesquisa', '3 a 6 M'),
+    ('Periodo de Pesquisa', '6 a 12 M'),
+    ('Periodo de Pesquisa', '12 a 18 M'),
+    ('Periodo de Pesquisa', '18 a 30 M')
+]
+
+# Executar o treinamento e avaliação para cada filtro de período de pesquisa (região já é filtrada)
+for filtro_coluna, filtro_valor in periodos_de_pesquisa:
+    treinar_e_avaliar_modelo(df, perguntas, filtro_coluna, filtro_valor)
+
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
+from sklearn.metrics import classification_report
+from sklearn.model_selection import train_test_split
+
+# Função para criar o target binário
+def criar_target_binario(df, tipo_target):
+    if tipo_target == 'detrator':
+        return df['target'].apply(lambda x: 1 if x.lower() == 'detrator' else 0)
+    elif tipo_target == 'neutro':
+        return df['target'].apply(lambda x: 1 if x.lower() == 'neutro' else 0)
+    else:
+        raise ValueError(f"Tipo de target inválido: {tipo_target}. Use 'detrator' ou 'neutro'.")
+
+# Função para treinar o modelo e exibir as top variáveis
+def treinar_e_exibir_variaveis(df, perguntas, filtro_coluna, filtro_valor, modelo_tipo='RandomForest'):
+    # Filtrar os dados com base no filtro
+    df_filtrado = df[df[filtro_coluna] == filtro_valor]
+
+    # Verificar se o DataFrame está vazio
+    if df_filtrado.empty:
+        print(f"Warning: DataFrame is empty for filter {filtro_coluna}: {filtro_valor}. Skipping model training.")
+        return
+
+    # Criação do target binário
+    y_detrator = criar_target_binario(df_filtrado, 'detrator')
+    y_neutro = criar_target_binario(df_filtrado, 'neutro')
+
+    # Verificar valores nulos nas variáveis de entrada
+    X = df_filtrado[perguntas].dropna()
+    y_detrator = y_detrator.loc[X.index]
+    y_neutro = y_neutro.loc[X.index]
+
+    # Divisão dos dados
+    X_train, X_test, y_train_detrator, y_test_detrator = train_test_split(X, y_detrator, test_size=0.2, random_state=42)
+    _, _, y_train_neutro, y_test_neutro = train_test_split(X, y_neutro, test_size=0.2, random_state=42)
+
+    for target_name, y_train, y_test in zip(['Detrator', 'Neutro'], [y_train_detrator, y_train_neutro], [y_test_detrator, y_test_neutro]):
+        # Seleção do modelo
+        if modelo_tipo == 'RandomForest':
+            modelo = RandomForestClassifier(random_state=42)
+        elif modelo_tipo == 'XGBoost':
+            modelo = XGBClassifier(use_label_encoder=False, eval_metric='logloss', random_state=42)
+        else:
+            raise ValueError(f"Modelo inválido: {modelo_tipo}. Use 'RandomForest' ou 'XGBoost'.")
+
+        # Treinamento do modelo
+        modelo.fit(X_train, y_train)
+        y_pred = modelo.predict(X_test)
+
+        # Relatório de Classificação
+        print(f"\nRelatório de Classificação - {target_name} - Filtro {filtro_coluna}: {filtro_valor}")
+        print(classification_report(y_test, y_pred))
+
+        # Extração das top 10 variáveis
+        if modelo_tipo == 'RandomForest':
+            importancias = modelo.feature_importances_
+            top_variaveis = pd.Series(importancias, index=perguntas).nlargest(10)
+        elif modelo_tipo == 'XGBoost':
+            importancias = modelo.get_booster().get_score(importance_type='weight')
+            top_variaveis = pd.Series(importancias).nlargest(10)
+
+        # Exibir as top variáveis
+        print(f"\nTop 10 variáveis mais importantes para {target_name} - Filtro {filtro_coluna}: {filtro_valor}")
+        print(top_variaveis)
+
+# Definindo filtros e perguntas
+filtros = [
+    ('Grupo de Produto', 'Grupo 9'),
+    ('Grupo de Produto', 'Grupo 10'),
+    ('regiao', 'Nordeste'),
+    ('regiao', 'Norte'),
+    ('regiao', 'Centro-Oeste'),
+    ('regiao', 'Sudeste'),
+    ('regiao', 'Sul'),
+    ('Periodo de Pesquisa', '3 a 6 M'),
+    ('Periodo de Pesquisa', '6 a 12 M'),
+    ('Periodo de Pesquisa', '12 a 18 M'),
+    ('Periodo de Pesquisa', '18 a 30 M'),
+]
+
+# Treinar e avaliar modelos
+for filtro_coluna, filtro_valor in filtros:
+    treinar_e_exibir_variaveis(df, perguntas, filtro_coluna, filtro_valor, modelo_tipo='RandomForest')
+
