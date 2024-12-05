@@ -151,3 +151,322 @@ print(total_base)
 print("\nTotal por Safra:")
 print(total_safra)
 
+# Verificando as classes majoritária e minoritária para cada safra
+for safra in safra_volumetria.index[:-1]:  # Excluindo a linha 'Total'
+    print(f"\nAnalisando a Safra {safra}:")
+    safra_data = safra_volumetria.loc[safra]
+    majoritaria = safra_data.idxmax()  # Classe majoritária
+    minoritaria = safra_data.idxmin()  # Classe minoritária
+    print(f"Classe Majoritária: {majoritaria}")
+    print(f"Classe Minoritária: {minoritaria}")
+
+    # Verificando se alguma safra apresenta volumetria muito diferente das outras
+    print(f"Distribuição para a Safra {safra}:")
+    print(safra_data)
+
+    # Definir as classificações
+df['Classificacao'] = df['nota'].apply(lambda x: 'Promotor' if x >= 9 else ('Detrator' if x <= 6 else 'Neutro'))
+
+# Filtrar apenas Promotores e Detratores
+df_filtrado = df[df['Classificacao'].isin(['Promotor', 'Detrator'])]
+
+# Agrupar por safra, região e classificação
+resultado = (
+    df_filtrado.groupby(['safra', 'regiao', 'Classificacao'])
+    .size()
+    .reset_index(name='Contagem')
+)
+
+# Encontrar a região com mais promotores e detratores por safra
+promotores = resultado[resultado['Classificacao'] == 'Promotor'].sort_values(['safra', 'Contagem'], ascending=[True, False]).groupby('safra').first().reset_index()
+detratores = resultado[resultado['Classificacao'] == 'Detrator'].sort_values(['safra', 'Contagem'], ascending=[True, False]).groupby('safra').first().reset_index()
+
+# Resultados
+print("Regiões com mais promotores por safra:")
+print(promotores[['safra', 'regiao', 'Contagem']])
+
+print("\nRegiões com mais detratores por safra:")
+print(detratores[['safra', 'regiao', 'Contagem']])
+
+# Lista das perguntas que você precisa utilizar
+perguntas_necessarias = [
+    'capacidade operacional (hectares por hora) (csat)',
+    'adequação as diversas operações e implementos (csat)',
+    'facilidade de operação (csat)',
+    'conforto e ergonomia (csat)',
+    'disponibilidade e confiabilidade mecânica  (csat)',
+    'facilidade para realização de manutenções (csat)',
+    'custo de manutenção (csat)',
+    'consumo de combustível (litros por hectares) (csat)',
+    'adaptabilidade as mais diversas condições de trabalho (csat)',
+    'facilidade de uso do piloto automático (csat)',
+    'geração e transmissão de dados para gestão da frota (csat)',
+    'geração e transmissão de dados para gestão agrícola (csat)'
+]
+
+# Filtrando as perguntas no seu DataFrame
+df_perguntas_filtrado = df[perguntas_necessarias]
+
+# Exibindo o DataFrame filtrado
+print(df_perguntas_filtrado.head())
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+
+# Função para calcular a correlação de Spearman e formatar as cores
+def calcular_correlacao(df, perguntas_necessarias, grupo):
+    # Filtrar as perguntas necessárias e a coluna 'nota'
+    df_grupo = df[df["Grupo de Produto"].isin(grupo)]
+
+    # Calcular a correlação de Spearman entre 'nota' e as perguntas
+    correlacoes = df_grupo[perguntas_necessarias + ['nota']].corr(method='spearman')['nota'].drop('nota')
+
+    # Ordenar as correlações da maior para a menor
+    correlacoes = correlacoes.sort_values(ascending=False)
+
+    # Criar um DataFrame com a correlação para aplicar o estilo
+    correlacoes_df = pd.DataFrame(correlacoes).reset_index()
+    correlacoes_df.columns = ['Pergunta', 'Correlação']
+
+    # Colorir as correlações conforme sua intensidade
+    def colorir_correlacao(val):
+        if val >= 0.7:
+            return 'background-color: red'  # Correlação forte
+        elif 0.4 <= val < 0.7:
+            return 'background-color: blue'  # Correlação média
+        else:
+            return 'background-color: green'  # Correlação fraca
+
+    # Aplicar a formatação de cores nas correlações usando Styler.map
+    correlacoes_style = correlacoes_df.style.map(lambda val: colorir_correlacao(val), subset=['Correlação'])
+
+    return correlacoes_style
+
+# Definindo as perguntas necessárias para o seu grupo
+perguntas_necessarias = [
+    'capacidade operacional (hectares por hora) (csat)',
+    'adequação as diversas operações e implementos (csat)',
+    'facilidade de operação (csat)',
+    'conforto e ergonomia (csat)',
+    'disponibilidade e confiabilidade mecânica  (csat)',
+    'facilidade para realização de manutenções (csat)',
+    'custo de manutenção (csat)',
+    'consumo de combustível (litros por hectares) (csat)',
+    'adaptabilidade as mais diversas condições de trabalho (csat)',
+    'facilidade de uso do piloto automático (csat)',
+    'geração e transmissão de dados para gestão da frota (csat)',
+    'geração e transmissão de dados para gestão agrícola (csat)'
+]
+
+# Exemplo de grupo e de filtragem de dados
+grupo = ["Grupo 9", "Grupo 10"]
+
+# Calculando a correlação para o seu grupo inteiro
+correlacao_grupo = calcular_correlacao(df, perguntas_necessarias, grupo)
+
+# Exibindo a correlação do grupo
+correlacao_grupo
+
+# Caso precise, é possível salvar como um arquivo HTML para visualização interativa
+# correlacao_grupo.to_html('correlacao_grupo.html')
+
+# Para realizar o cálculo por região e por período de pesquisa, você pode replicar o processo
+# Para cada região:
+for regiao in df['regiao'].unique():
+    correlacao_regiao = calcular_correlacao(df[df['regiao'] == regiao], perguntas_necessarias, grupo)
+    print(f"Correlação para a região {regiao}:")
+    display(correlacao_regiao)
+
+# Para cada período de pesquisa:
+for periodo in df['Periodo de Pesquisa'].unique():
+    correlacao_periodo = calcular_correlacao(df[df['Periodo de Pesquisa'] == periodo], perguntas_necessarias, grupo)
+    print(f"Correlação para o período de pesquisa {periodo}:")
+    display(correlacao_periodo)
+
+# Para calcular por safra, também podemos fazer da mesma forma:
+for safra in df['safra'].unique():
+    correlacao_safra = calcular_correlacao(df[df['safra'] == safra], perguntas_necessarias, grupo)
+    print(f"Correlação para a safra {safra}:")
+    display(correlacao_safra)
+
+# Função para criar o target binário para detratores e neutros
+def criar_target_binario(df, tipo_target):
+    """
+    tipo_target: 'detrator' ou 'neutro'
+    """
+    if tipo_target == 'detrator':
+        # Detratores: 1 para detrator, 0 para neutro ou promotor
+        return df['target'].apply(lambda x: 1 if x == 'detrator' else 0)
+    elif tipo_target == 'neutro':
+        # Neutros: 1 para neutro, 0 para promotor ou detrator
+        return df['target'].apply(lambda x: 1 if x == 'neutro' else 0)
+
+# Passo 2: Criar as variáveis de entrada (X) e os alvos (y) para os modelos
+# Excluindo a coluna 'nota' e a coluna 'target' de 3 classes
+perguntas = [
+    'capacidade operacional (hectares por hora) (csat)',
+    'adequação as diversas operações e implementos (csat)',
+    'facilidade de operação (csat)',
+    'conforto e ergonomia (csat)',
+    'disponibilidade e confiabilidade mecânica  (csat)',
+    'facilidade para realização de manutenções (csat)',
+    'custo de manutenção (csat)',
+    'consumo de combustível (litros por hectares) (csat)',
+    'adaptabilidade as mais diversas condições de trabalho (csat)',
+    'facilidade de uso do piloto automático (csat)',
+    'geração e transmissão de dados para gestão da frota (csat)',
+    'geração e transmissão de dados para gestão agrícola (csat)'
+]
+
+# Passo 3: Filtrar as variáveis de entrada (X) e as variáveis alvo (y)
+X = df[perguntas]
+y_detrator = criar_target_binario(df, 'detrator')  # Target binário para detratores
+y_neutro = criar_target_binario(df, 'neutro')  # Target binário para neutros
+
+# Passo 4: Divisão de dados em treino e teste
+X_train, X_test, y_detrator_train, y_detrator_test = train_test_split(X, y_detrator, test_size=0.2, random_state=42)
+X_train, X_test, y_neutro_train, y_neutro_test = train_test_split(X, y_neutro, test_size=0.2, random_state=42)
+
+# Passo 5: Treinamento do Modelo de Detratores
+modelo_detrator = RandomForestClassifier(random_state=42)
+modelo_detrator.fit(X_train, y_detrator_train)
+
+# Passo 6: Avaliação do Modelo de Detratores
+y_detrator_pred = modelo_detrator.predict(X_test)
+print("Relatório de Classificação para Detratores:")
+print(classification_report(y_detrator_test, y_detrator_pred))
+
+# Passo 7: Treinamento do Modelo de Neutros
+modelo_neutro = RandomForestClassifier(random_state=42)
+modelo_neutro.fit(X_train, y_neutro_train)
+
+# Passo 8: Avaliação do Modelo de Neutros
+y_neutro_pred = modelo_neutro.predict(X_test)
+print("Relatório de Classificação para Neutros:")
+print(classification_report(y_neutro_test, y_neutro_pred))
+
+# Passo 1: Filtrar o DataFrame para a região Centro-Oeste
+df_centro_oeste = df[df['regiao'] == 'Centro-Oeste']  # Substitua 'região' pelo nome da sua coluna de região
+
+# Passo 2: Criar a função para o target binário (sem modificações)
+def criar_target_binario(df, tipo_target):
+    """
+    tipo_target: 'detrator' ou 'neutro'
+    """
+    if tipo_target == 'detrator':
+        # Detratores: 1 para detrator, 0 para neutro ou promotor
+        return df['target'].apply(lambda x: 1 if x == 'detrator' else 0)
+    elif tipo_target == 'neutro':
+        # Neutros: 1 para neutro, 0 para promotor ou detrator
+        return df['target'].apply(lambda x: 1 if x == 'neutro' else 0)
+
+# Passo 3: Filtrar as variáveis de entrada (X) e as variáveis alvo (y)
+perguntas = [
+    'capacidade operacional (hectares por hora) (csat)',
+    'adequação as diversas operações e implementos (csat)',
+    'facilidade de operação (csat)',
+    'conforto e ergonomia (csat)',
+    'disponibilidade e confiabilidade mecânica  (csat)',
+    'facilidade para realização de manutenções (csat)',
+    'custo de manutenção (csat)',
+    'consumo de combustível (litros por hectares) (csat)',
+    'adaptabilidade as mais diversas condições de trabalho (csat)',
+    'facilidade de uso do piloto automático (csat)',
+    'geração e transmissão de dados para gestão da frota (csat)',
+    'geração e transmissão de dados para gestão agrícola (csat)'
+]
+
+# Passo 4: Filtrar as variáveis de entrada (X) e as variáveis alvo (y) apenas para a região Centro-Oeste
+X_centro_oeste = df_centro_oeste[perguntas]
+y_detrator_centro_oeste = criar_target_binario(df_centro_oeste, 'detrator')  # Target binário para detratores
+y_neutro_centro_oeste = criar_target_binario(df_centro_oeste, 'neutro')  # Target binário para neutros
+
+# Passo 5: Divisão de dados em treino e teste
+X_train, X_test, y_detrator_train, y_detrator_test = train_test_split(X_centro_oeste, y_detrator_centro_oeste, test_size=0.2, random_state=42)
+X_train, X_test, y_neutro_train, y_neutro_test = train_test_split(X_centro_oeste, y_neutro_centro_oeste, test_size=0.2, random_state=42)
+
+# Passo 6: Treinamento do Modelo de Detratores
+modelo_detrator = RandomForestClassifier(random_state=42)
+modelo_detrator.fit(X_train, y_detrator_train)
+
+# Passo 7: Avaliação do Modelo de Detratores
+y_detrator_pred = modelo_detrator.predict(X_test)
+print("Relatório de Classificação para Detratores (Centro-Oeste):")
+print(classification_report(y_detrator_test, y_detrator_pred))
+
+# Passo 8: Treinamento do Modelo de Neutros
+modelo_neutro = RandomForestClassifier(random_state=42)
+modelo_neutro.fit(X_train, y_neutro_train)
+
+# Passo 9: Avaliação do Modelo de Neutros
+y_neutro_pred = modelo_neutro.predict(X_test)
+print("Relatório de Classificação para Neutros (Centro-Oeste):")
+print(classification_report(y_neutro_test, y_neutro_pred))
+
+# Função para criar o target binário
+def criar_target_binario(df, tipo_target):
+    if tipo_target == 'detrator':
+        return df['target'].apply(lambda x: 1 if x == 'detrator' else 0)
+    elif tipo_target == 'neutro':
+        return df['target'].apply(lambda x: 1 if x == 'neutro' else 0)
+    else:
+        raise ValueError(f"Tipo de target inválido: {tipo_target}. Use 'detrator' ou 'neutro'.")
+
+# Função para treinar e avaliar um modelo para um dado filtro
+def treinar_e_avaliar_modelo(df, perguntas, filtro_coluna, filtro_valor):
+    # Filtrar os dados com base no filtro
+    df_filtrado = df[df[filtro_coluna] == filtro_valor]
+
+    # Verificar se o DataFrame está vazio
+    if df_filtrado.empty:
+        print(f"Warning: DataFrame is empty for filter {filtro_coluna}: {filtro_valor}. Skipping model training.")
+        return
+
+    # Criação do target binário
+    y_detrator = criar_target_binario(df_filtrado, 'detrator')
+    y_neutro = criar_target_binario(df_filtrado, 'neutro')
+
+    # Verificar valores nulos nas variáveis de entrada
+    X = df_filtrado[perguntas].dropna()
+    y_detrator = y_detrator.loc[X.index]
+    y_neutro = y_neutro.loc[X.index]
+
+    # Divisão dos dados em treino e teste (mesma divisão para ambos os modelos)
+    X_train, X_test, y_train_detrator, y_test_detrator = train_test_split(X, y_detrator, test_size=0.2, random_state=42)
+    _, _, y_train_neutro, y_test_neutro = train_test_split(X, y_neutro, test_size=0.2, random_state=42)
+
+    # Modelo para detratores
+    modelo_detrator = RandomForestClassifier(random_state=42)
+    modelo_detrator.fit(X_train, y_train_detrator)
+    y_pred_detrator = modelo_detrator.predict(X_test)
+    print(f"\nRelatório de Classificação - Detratores - Filtro {filtro_coluna}: {filtro_valor}")
+    print(classification_report(y_test_detrator, y_pred_detrator))
+
+    # Modelo para neutros
+    modelo_neutro = RandomForestClassifier(random_state=42)
+    modelo_neutro.fit(X_train, y_train_neutro)
+    y_pred_neutro = modelo_neutro.predict(X_test)
+    print(f"\nRelatório de Classificação - Neutros - Filtro {filtro_coluna}: {filtro_valor}")
+    print(classification_report(y_test_neutro, y_pred_neutro))
+
+# Definindo as colunas de filtro e perguntas
+filtros = [
+    ('Grupo de Produto', 'Grupo 9'),
+    ('Grupo de Produto', 'Grupo 10'),
+    ('regiao', 'Nordeste'),
+    ('regiao', 'Norte'),
+    ('regiao', 'Centro-Oeste'),
+    ('regiao', 'Sudeste'),
+    ('regiao', 'Sul'),
+    ('Periodo de Pesquisa', '3 a 6 M'),
+    ('Periodo de Pesquisa', '6 a 12 M'),
+    ('Periodo de Pesquisa', '12 a 18 M'),
+    ('Periodo de Pesquisa', '18 a 30 M')
+]
+
+# Executar o treinamento e avaliação para cada filtro
+for filtro_coluna, filtro_valor in filtros:
+    treinar_e_avaliar_modelo(df, perguntas, filtro_coluna, filtro_valor)
+
